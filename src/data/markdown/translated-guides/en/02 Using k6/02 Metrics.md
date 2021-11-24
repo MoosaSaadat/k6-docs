@@ -69,16 +69,80 @@ All the `http_req_...` lines and the ones after them are _built-in_ metrics that
 
 The following _built-in_ metrics will **always** be collected by k6:
 
-| Metric Name        | Type    | Description                                                                                                                                                                                                     |
-| ------------------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| vus                | Gauge   | Current number of active virtual users                                                                                                                                                                          |
-| vus_max            | Gauge   | Max possible number of virtual users (VU resources are pre-allocated, to ensure performance will not be affected when scaling up the load level)                                                                |
-| iterations         | Counter | The aggregate number of times the VUs in the test have executed the JS script (the `default` function).                                                                                                         |
-| iteration_duration | Trend   | The time it took to complete one full iteration of the default/main function.                                                                                                                                   |
+| Metric Name | Type | Description |
+| ----------- | ---- | ----------- |
+| vus                | Gauge   | Current number of active virtual users |
+| vus_max            | Gauge   | Max possible number of virtual users (VU resources are pre-allocated, to ensure performance will not be affected when scaling up the load level) |
+| iterations         | Counter | The aggregate number of times the VUs in the test have executed the JS script (the `default` function). |
+| iteration_duration | Trend   | The time it took to complete one full iteration. It includes the time spent in `setup` and `teardown` as well, there is currently a workaround for excluding them shown in the example below. |
 | dropped_iterations | Counter | Introduced in k6 v0.27.0, the number of iterations that could not be started due to lack of VUs (for the arrival-rate executors) or lack of time (due to expired maxDuration in the iteration-based executors). |
-| data_received      | Counter | The amount of received data. Read [this example](/examples/track-transmitted-data-per-url) to track data for an individual URL.                                                                                 |
-| data_sent          | Counter | The amount of data sent. Read [this example](/examples/track-transmitted-data-per-url) to track data for an individual URL.                                                                                     |
-| checks             | Rate    | The rate of successful checks.                                                                                                                                                                                  |
+| data_received      | Counter | The amount of received data. Read [this example](/examples/track-transmitted-data-per-url) to track data for an individual URL. |
+| data_sent          | Counter | The amount of data sent. Read [this example](/examples/track-transmitted-data-per-url) to track data for an individual URL. |
+| checks             | Rate    | The rate of successful checks. |
+
+<Collapsible title="Workaround to isolate `iteration_duration` metric from Setup and Teardown">
+
+A common requested case is to track the `iteration_duration` metric without including time spent for `setup` and `teardown` functions.
+This feature is not yet available but a threshold on `iteration_duration` can be used as a workaround. Check the following example.
+
+<CodeGroup lineNumbers={[true]}>
+
+```javascript
+import { sleep } from 'k6'
+import http from 'k6/http'
+
+export const options = {
+    vus: 1,
+    iterations: 1,
+    thresholds: {
+        // We're using 'scenario:default' because that's the internal k6
+        // scenario name when we haven't actually specified `options.scenarios`
+        // explicitly and are just using the old execution shortcuts instead...
+        'iteration_duration{scenario:default}': [
+            // Some dummy threshold that's always going to pass.
+	    // You don't even need to have something here.
+            `max>=0`,
+        ],
+        // You can isolate setup and teardown metrics, if you are interested in them
+        // for some reason. This looks nasty, but '::' is the group separator.
+        'iteration_duration{group:::setup}': [`max>=0`],
+        'iteration_duration{group:::teardown}': [`max>=0`],
+
+        // And you can also isolate the HTTP metrics, in case of long-running requests
+        'http_req_duration{scenario:default}': [`max>=0`],
+    },
+}
+
+export function setup() {
+    http.get('http://httpbin.test.k6.io/delay/5');
+}
+export default function () {
+    http.get('http://test.k6.io/?where=default');
+    sleep(0.5);
+}
+
+export function teardown() {
+    http.get('http://httpbin.test.k6.io/delay/3');
+    sleep(5);
+}
+```
+
+</CodeGroup>
+
+A dedicated metric for the `default` scenario is generated excluding the setup and teardown function:
+
+<CodeGroup lineNumbers={[false]}>
+
+```
+    iteration_duration.............: avg=5.43s    min=1.42s    med=5.99s    max=8.9s     p(90)=8.32s    p(95)=8.61s
+     ✓ { group:::setup }............: avg=5.99s    min=5.99s    med=5.99s    max=5.99s    p(90)=5.99s    p(95)=5.99s
+     ✓ { group:::teardown }.........: avg=8.9s     min=8.9s     med=8.9s     max=8.9s     p(90)=8.9s     p(95)=8.9s
+     ✓ { scenario:default }.........: avg=1.42s    min=1.42s    med=1.42s    max=1.42s    p(90)=1.42s    p(95)=1.42s
+```
+
+</CodeGroup>
+
+</Collapsible>
 
 ## HTTP-specific built-in metrics
 
