@@ -74,16 +74,21 @@ The following _built-in_ metrics will **always** be collected by k6:
 | vus                | Gauge   | Current number of active virtual users |
 | vus_max            | Gauge   | Max possible number of virtual users (VU resources are pre-allocated, to ensure performance will not be affected when scaling up the load level) |
 | iterations         | Counter | The aggregate number of times the VUs in the test have executed the JS script (the `default` function). |
-| iteration_duration | Trend   | The time it took to complete one full iteration. It includes the time spent in `setup` and `teardown` as well, there is currently a workaround for excluding them shown in the example below. |
+| iteration_duration | Trend   | The time it took to complete one full iteration. It includes the time spent in `setup` and `teardown` as well. See the workaround in the example below, how to create a sub-metric for getting only the duration of the iteration's function for a specific scenario. |
 | dropped_iterations | Counter | Introduced in k6 v0.27.0, the number of iterations that could not be started due to lack of VUs (for the arrival-rate executors) or lack of time (due to expired maxDuration in the iteration-based executors). |
 | data_received      | Counter | The amount of received data. Read [this example](/examples/track-transmitted-data-per-url) to track data for an individual URL. |
 | data_sent          | Counter | The amount of data sent. Read [this example](/examples/track-transmitted-data-per-url) to track data for an individual URL. |
 | checks             | Rate    | The rate of successful checks. |
 
-<Collapsible title="Workaround to isolate `iteration_duration` metric from Setup and Teardown">
+<Collapsible title="Workaround to calculate `iteration_duration` metric only for a scenario">
 
 A common requested case is to track the `iteration_duration` metric without including time spent for `setup` and `teardown` functions.
-This feature is not yet available but a threshold on `iteration_duration` can be used as a workaround. Check the following example.
+This feature is not yet available but a threshold on `iteration_duration` can be used as a workaround.
+
+It's based on the concept of creating a sub-metrics for the required scope and set a always-pass threshold. It mostly works with every filter that already works with the threshold, for example:
+* 'iteration_duration{scenario:default}' will generate a sub-metric collecting samples only for the default scenario's iteration. 'scenario:default' because that's the internal k6 scenario name when we haven't actually specified `options.scenarios` explicitly and are just using the execution shortcuts instead.
+* 'iteration_duration{group:::setup}' or 'iteration_duration{group:::teardown}' create sub-metrics colecting duration only for `setup` and `teardown`. '::' is the group separator syntax and k6 implicitly creates groups for `setup` and `teardown`.
+* 'http_req_duration{scenario:default}' can be useful as well for isolating executed long-running requests.
 
 <CodeGroup lineNumbers={[true]}>
 
@@ -95,20 +100,9 @@ export const options = {
     vus: 1,
     iterations: 1,
     thresholds: {
-        // We're using 'scenario:default' because that's the internal k6
-        // scenario name when we haven't actually specified `options.scenarios`
-        // explicitly and are just using the old execution shortcuts instead...
-        'iteration_duration{scenario:default}': [
-            // Some dummy threshold that's always going to pass.
-	    // You don't even need to have something here.
-            `max>=0`,
-        ],
-        // You can isolate setup and teardown metrics, if you are interested in them
-        // for some reason. This looks nasty, but '::' is the group separator.
+        'iteration_duration{scenario:default}': [`max>=0`],
         'iteration_duration{group:::setup}': [`max>=0`],
         'iteration_duration{group:::teardown}': [`max>=0`],
-
-        // And you can also isolate the HTTP metrics, in case of long-running requests
         'http_req_duration{scenario:default}': [`max>=0`],
     },
 }
@@ -129,15 +123,19 @@ export function teardown() {
 
 </CodeGroup>
 
-A dedicated metric for the `default` scenario is generated excluding the setup and teardown function:
+Dedicated sub-metrics have been generated collecting samples only for the scope defined by thresholds:
 
 <CodeGroup lineNumbers={[false]}>
 
 ```
-    iteration_duration.............: avg=5.43s    min=1.42s    med=5.99s    max=8.9s     p(90)=8.32s    p(95)=8.61s
-     ✓ { group:::setup }............: avg=5.99s    min=5.99s    med=5.99s    max=5.99s    p(90)=5.99s    p(95)=5.99s
-     ✓ { group:::teardown }.........: avg=8.9s     min=8.9s     med=8.9s     max=8.9s     p(90)=8.9s     p(95)=8.9s
-     ✓ { scenario:default }.........: avg=1.42s    min=1.42s    med=1.42s    max=1.42s    p(90)=1.42s    p(95)=1.42s
+     http_req_duration..............: avg=1.48s    min=101.95ms med=148.4ms  max=5.22s    p(90)=4.21s    p(95)=4.71s
+       { expected_response:true }...: avg=1.48s    min=101.95ms med=148.4ms  max=5.22s    p(90)=4.21s    p(95)=4.71s
+     ✓ { scenario:default }.........: avg=148.4ms  min=103.1ms  med=148.4ms  max=193.7ms  p(90)=184.64ms p(95)=189.17ms
+
+     iteration_duration.............: avg=5.51s    min=1.61s    med=6.13s    max=8.81s    p(90)=8.27s    p(95)=8.54s
+     ✓ { group:::setup }............: avg=6.13s    min=6.13s    med=6.13s    max=6.13s    p(90)=6.13s    p(95)=6.13s
+     ✓ { group:::teardown }.........: avg=8.81s    min=8.81s    med=8.81s    max=8.81s    p(90)=8.81s    p(95)=8.81s
+     ✓ { scenario:default }.........: avg=1.61s    min=1.61s    med=1.61s    max=1.61s    p(90)=1.61s    p(95)=1.61s
 ```
 
 </CodeGroup>
