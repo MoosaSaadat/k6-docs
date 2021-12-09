@@ -80,12 +80,12 @@ The following _built-in_ metrics will **always** be collected by k6:
 | data_sent          | Counter | The amount of data sent. Read [this example](/examples/track-transmitted-data-per-url) to track data for an individual URL. |
 | checks             | Rate    | The rate of successful checks. |
 
-<Collapsible title="Workaround to calculate iteration_duration metric only for a scenario">
+<Collapsible title="Workaround to calculate iteration_duration metric only for a scenario" tag="h2">
 
 A common requested case is to track the `iteration_duration` metric without including time spent for `setup` and `teardown` functions.
 This feature is not yet available but a threshold on `iteration_duration` or any pre-existing metrics can be used as a workaround.
 
-It's based on the concept of creating sub-metrics for the required scope and setting thresholds that always pass. It works with any filter that already works with threshold, for example:
+It's based on the concept of creating thresholds for sub-metrics created by tags for the required scope and setting the criteria that always pass. It works with any enabled tags that already works with threshold, for example:
 * `iteration_duration{scenario:default}` generates a sub-metric collecting samples only for the default scenario's iteration. `scenario:default` is used because that's the internal k6 scenario name when we haven't specified `options. `scenarios` explicitly and are just using the execution shortcuts instead.
 * `iteration_duration{group:::setup}` or `iteration_duration{group:::teardown}` create sub-metrics collecting the duration only for `setup` and `teardown`. `::` is the group separator syntax and k6 implicitly creates groups for `setup` and `teardown`.
 * `http_req_duration{scenario:default}` can be useful as well for isolating executed long-running requests.
