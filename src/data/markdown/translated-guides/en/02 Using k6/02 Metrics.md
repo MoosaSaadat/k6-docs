@@ -74,7 +74,7 @@ The following _built-in_ metrics will **always** be collected by k6:
 | vus                | Gauge   | Current number of active virtual users |
 | vus_max            | Gauge   | Max possible number of virtual users (VU resources are pre-allocated, to ensure performance will not be affected when scaling up the load level) |
 | iterations         | Counter | The aggregate number of times the VUs in the test have executed the JS script (the `default` function). |
-| iteration_duration | Trend   | The time it took to complete one full iteration. It includes the time spent in `setup` and `teardown` as well. See the workaround in the example below, how to create a sub-metric for getting only the duration of the iteration's function for a specific scenario. |
+| iteration_duration | Trend   | The time it took to complete one full iteration. It includes the time spent in `setup` and `teardown` as well. See the [workaround](#workaround-to-calculate-iteration_duration-metric-only-for-a-scenario) in the example below, how to create a sub-metric for getting only the duration of the iteration's function for a specific scenario. |
 | dropped_iterations | Counter | Introduced in k6 v0.27.0, the number of iterations that could not be started due to lack of VUs (for the arrival-rate executors) or lack of time (due to expired maxDuration in the iteration-based executors). |
 | data_received      | Counter | The amount of received data. Read [this example](/examples/track-transmitted-data-per-url) to track data for an individual URL. |
 | data_sent          | Counter | The amount of data sent. Read [this example](/examples/track-transmitted-data-per-url) to track data for an individual URL. |
